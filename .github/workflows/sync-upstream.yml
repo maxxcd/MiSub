@@ -1,0 +1,25 @@
+name: Weekly Sync with Upstream
+on:
+  schedule:
+    - cron: '0 0 * * 1'  # 每周一 UTC 时间 00:00（北京时间周一 8:00）
+  workflow_dispatch:     # 允许手动触发
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Fork
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # 必须！获取完整提交历史
+
+      - name: Add Upstream Remote
+        run: |
+          git remote add upstream https://github.com/imzyb/MiSub.git
+          git fetch upstream
+
+      - name: Merge Upstream Changes
+        run: |
+          git checkout main          # 假设你的分支是 main
+          git merge upstream/main   # 合并上游 main 分支
+          git push origin main      # 推送到你的复刻
