@@ -1,8 +1,12 @@
 name: Weekly Sync with Upstream
 on:
   schedule:
-    - cron: '0 0 * * 1'  # 每周一 UTC 时间 00:00（北京时间周一 8:00）
-  workflow_dispatch:     # 允许手动触发
+    - cron: '0 0 * * 1'
+  workflow_dispatch:
+
+# 添加权限配置
+permissions:
+  contents: write  # 允许工作流写入仓库内容
 
 jobs:
   sync:
