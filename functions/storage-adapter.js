@@ -174,7 +174,8 @@ class D1StorageAdapter {
         } else if (key === DATA_KEYS.SETTINGS) {
             return { table: 'settings', queryField: 'key', queryValue: 'main' };
         } else {
-            // 处理其他格式的 key，默认作为 settings 表的 key
+            // 处理其他格式的 key，默认作为 settings 表的 key，但记录警告
+            console.warn(`[D1 Storage] Unknown key format: ${key}, treating as settings key`);
             return { table: 'settings', queryField: 'key', queryValue: key };
         }
     }
@@ -228,20 +229,7 @@ export class StorageFactory {
      */
     static async getStorageType(env) {
         try {
-            // 先尝试从 KV 读取设置
-            let settings = null;
-            try {
-                settings = await env.MISUB_KV.get(DATA_KEYS.SETTINGS, 'json');
-            } catch (kvError) {
-                console.warn('[Storage] Failed to read from KV:', kvError.message);
-            }
-
-            // 如果 KV 中有设置且指定了存储类型，使用它
-            if (settings?.storageType) {
-                return settings.storageType;
-            }
-
-            // 如果 KV 中没有设置或没有存储类型，尝试从 D1 读取
+            // 优先从 D1 读取设置（若已切换到 D1，则后续请求不会触碰 KV）
             if (env.MISUB_DB) {
                 try {
                     const d1Adapter = new D1StorageAdapter(env.MISUB_DB);
@@ -252,6 +240,17 @@ export class StorageFactory {
                 } catch (d1Error) {
                     console.warn('[Storage] Failed to read from D1:', d1Error.message);
                 }
+            }
+
+            // 回退：从 KV 读取设置（默认仍支持 KV）
+            let settings = null;
+            try {
+                settings = await env.MISUB_KV.get(DATA_KEYS.SETTINGS, 'json');
+            } catch (kvError) {
+                console.warn('[Storage] Failed to read from KV:', kvError.message);
+            }
+            if (settings?.storageType) {
+                return settings.storageType;
             }
 
             // 默认使用 KV
