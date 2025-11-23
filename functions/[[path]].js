@@ -34,6 +34,7 @@ const OLD_KV_KEY = 'misub_data_v1';
 const KV_KEY_SUBS = 'misub_subscriptions_v1';
 const KV_KEY_PROFILES = 'misub_profiles_v1';
 const KV_KEY_SETTINGS = 'worker_settings_v1';
+const KV_KEY_PROXY_CONFIG = 'misub_proxy_config_v1'; // 新增代理配置键
 const COOKIE_NAME = 'auth_session';
 const SESSION_DURATION = 8 * 60 * 60 * 1000;
 
@@ -1230,7 +1231,7 @@ async function generateCombinedNodeList(context, config, userAgent, misubs, prep
                 .filter(line => /^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls|socks5):\/\//.test(line))
                 .map(line => {
                     // 修复SS节点中的URL编码问题
-                    if (line.startsWith('ss://')) {
+                    if (line.startsWith('ss://') || line.startsWith('vless://') || line.startsWith('trojan://')) {
                         try {
                             const hashIndex = line.indexOf('#');
                             let baseLink = hashIndex !== -1 ? line.substring(0, hashIndex) : line;
@@ -1244,7 +1245,8 @@ async function generateCombinedNodeList(context, config, userAgent, misubs, prep
                                 if (base64Part.includes('%')) {
                                     // 解码URL编码的base64部分
                                     const decodedBase64 = decodeURIComponent(base64Part);
-                                    baseLink = 'ss://' + decodedBase64 + baseLink.substring(atIndex);
+                                    const protocol = baseLink.substring(0, protocolEnd);
+                                    baseLink = protocol + '://' + decodedBase64 + baseLink.substring(atIndex);
                                 }
                             }
                             return baseLink + fragment;
@@ -1652,6 +1654,14 @@ export async function onRequest(context) {
     // **核心修改：判斷是否為定時觸發**
     if (request.headers.get("cf-cron")) {
         return handleCronTrigger(env);
+    }
+
+    // **代理功能路由处理 - 优先级低于通用API**
+    if (url.pathname.startsWith('/api/proxy/') || url.pathname.startsWith('/proxy/')) {
+        const { createProxyHandler } = await import('./proxy/proxy-handler.js');
+        const proxyHandler = createProxyHandler(env);
+        await proxyHandler.init();
+        return await proxyHandler.handleRequest(request);
     }
 
     if (url.pathname.startsWith('/api/')) {
